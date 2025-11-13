@@ -112,7 +112,7 @@ extern "C" {
 #define PAYLOAD_LEN                                 64
 
 /* USER CODE BEGIN EC */
-#define TX_TIMEOUT_VALUE 							2000
+#define TX_TIMEOUT_VALUE 							5000
 
 /* USER CODE END EC */
 

@@ -34,7 +34,8 @@
 
 /* External variables ---------------------------------------------------------*/
 /* USER CODE BEGIN EV */
-#define BUFFER_SIZE 	10
+#define BUFFER_SIZE 	14
+extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart2;
 /* USER CODE END EV */
 
@@ -47,7 +48,13 @@ static UTIL_TIMER_Object_t timerReceive;    //[JT]
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TRANSMIT_PERIOD_MS 2000  /* set Tx period of timer to 2 seconds */     //[JT]
+#define TRANSMIT_PERIOD_MS 5000  /* set Tx period of timer to 2 seconds */     //[JT]
+#define MPU_ADDR         0x68 << 1  // shifted for HAL (8-bit)
+#define WHO_AM_I_REG         0x75
+#define PWR_MGMT_1_REG       0x6B
+#define ACCEL_XOUT_H         0x3B
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -96,12 +103,15 @@ static void OnRxError(void);
 
 /* USER CODE BEGIN PFP */
 static void TransmitPacket(void *context);    //[JT]
+void MPU_Init(void);
+void MPU_ReadAccel_f(float* ax, float* ay, float* az);
 /* USER CODE END PFP */
 
 /* Exported functions ---------------------------------------------------------*/
 void SubghzApp_Init(void)
 {
   /* USER CODE BEGIN SubghzApp_Init_1 */
+	MPU_Init();
 
   /* USER CODE END SubghzApp_Init_1 */
 
@@ -124,16 +134,16 @@ void SubghzApp_Init(void)
   Radio.SetMaxPayloadLength(MODEM_LORA, BUFFER_SIZE);
   Radio.SetChannel(RF_FREQUENCY);
 
-  Buffer[0] = 'S';
-    Buffer[1] = 'T';
-    Buffer[2] = 'M';
-    Buffer[3] = '3';
-    Buffer[4] = '2';
-    Buffer[5] = 'W';
-    Buffer[6] = 'L';
-    Buffer[7] = '_';
-    Buffer[8] = 'T';
-    Buffer[9] = 'X';
+  	Buffer[0] = '4';
+    Buffer[1] = '2';
+    //Buffer[2] = 'M';
+    //Buffer[3] = '3';
+    //Buffer[4] = '2';
+    //Buffer[5] = 'W';
+    //Buffer[6] = 'L';
+    //Buffer[7] = '_';
+    //Buffer[8] = 'T';
+    //Buffer[9] = 'X';
 
     /* Add delay between TX and RX =
     time Busy_signal is ON in RX opening window */
@@ -149,8 +159,74 @@ void SubghzApp_Init(void)
 /* USER CODE BEGIN EF */
 static void TransmitPacket(void *context)
 {
+  float ax = 111111111111111.11111111111111;
+  float ay = 2.0;
+  float az = 3.0;
+  MPU_ReadAccel_f(&ax, &ay, &az);
+  //APP_LOG(TS_ON, VLEVEL_L, "x:%.2f\n", ax);
+  memcpy(Buffer+2, &ax, 4);
+  memcpy(Buffer+6, &ay, 4);
+  memcpy(Buffer+10, &az, 4);
+  APP_LOG(TS_ON, VLEVEL_L, "%s\n\r", Buffer);
   Radio.Send(Buffer, BufferSize);
 }
+
+// ---- Simple helper functions ----
+uint8_t MPU_ReadReg(uint8_t reg) {
+    uint8_t data;
+    HAL_I2C_Mem_Read(&hi2c2, MPU_ADDR, reg, 1, &data, 1, HAL_MAX_DELAY);
+    return data;
+}
+
+void MPU_WriteReg(uint8_t reg, uint8_t value) {
+    HAL_I2C_Mem_Write(&hi2c2, MPU_ADDR, reg, 1, &value, 1, HAL_MAX_DELAY);
+}
+
+void MPU_Init(void) {
+    // Wake up the MPU
+    MPU_WriteReg(PWR_MGMT_1_REG, 0x00);
+    HAL_Delay(100);
+
+    // Verify communication
+    uint8_t who_am_i = MPU_ReadReg(WHO_AM_I_REG);
+    if (who_am_i == 0x71 || who_am_i == 0x73) {
+    	APP_LOG(TS_ON, VLEVEL_L,"MPU9250 detected! WHO_AM_I = 0x%X\r\n", who_am_i);
+    } else {
+    	APP_LOG(TS_ON, VLEVEL_L,"MPU9250 not found! Read: 0x%X\r\n", who_am_i);
+    }
+}
+
+
+void MPU_ReadAccel_f(float* ax, float* ay, float* az) {
+	/**
+	 * Reads the Data like in the normal version, but instantly convert it to a human understandable float
+	 *
+	 * sensitivity values:
+	 * +-2g => 16384
+	 * +-4g => 8192
+	 * +-8g => 4096
+	 * +-16g => 2048
+	 *
+	 * can be configured using Register (0x1C), but for our use-case (sending LoRa data) the default +-2g is fine
+	 * config = MPU_WriteReg(0x1C, 0x00); // 0x00=+-2g, 0x08=+-4g, 0x10=+-8g, 0x18=+-16g
+	 *
+	 */
+    int16_t rawX, rawY, rawZ;
+    uint8_t rawData[6];
+
+    HAL_I2C_Mem_Read(&hi2c2, MPU_ADDR, ACCEL_XOUT_H, 1, rawData, 6, HAL_MAX_DELAY);
+    rawX = ((int16_t)rawData[0] << 8) | rawData[1];
+    rawY = ((int16_t)rawData[2] << 8) | rawData[3];
+    rawZ = ((int16_t)rawData[4] << 8) | rawData[5];
+
+    float sensitivity = 16384.0f;  // for +-2g
+    float g = 9.81f;
+    *ax = (float)rawX / sensitivity * g;
+    *ay = (float)rawY / sensitivity * g;
+    *az = (float)rawZ / sensitivity * g;
+    return;
+}
+
 /* USER CODE END EF */
 
 /* Private functions ---------------------------------------------------------*/
