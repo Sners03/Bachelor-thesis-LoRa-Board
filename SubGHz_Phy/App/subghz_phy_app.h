@@ -86,7 +86,7 @@ extern "C" {
 #error "Please define a frequency band in the compiler options."
 #endif /* REGION_XXxxx */
 
-#define TX_OUTPUT_POWER                             100        /* dBm */
+#define TX_OUTPUT_POWER                             50        /* dBm */
 
 #if (( USE_MODEM_LORA == 1 ) && ( USE_MODEM_FSK == 0 ))
 #define LORA_BANDWIDTH                              0         /* [0: 125 kHz, 1: 250 kHz, 2: 500 kHz, 3: Reserved] */

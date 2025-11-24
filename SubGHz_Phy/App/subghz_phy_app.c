@@ -34,7 +34,19 @@
 
 /* External variables ---------------------------------------------------------*/
 /* USER CODE BEGIN EV */
-#define BUFFER_SIZE 	14
+/**
+ * BUFFER:
+ * 7 Bytes Header
+ * 	4 Bytes Dev Addr
+ * 	1 Byte FCtl
+ * 	2 Bytes FCount
+ * 1 Byte Port
+ * 12 Bytes Payload
+ * 	4 Bytes ax
+ * 	4 Bytes ay
+ * 	4 Bytes az
+ */
+#define BUFFER_SIZE 	19
 extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart2;
 /* USER CODE END EV */
@@ -134,13 +146,14 @@ void SubghzApp_Init(void)
   Radio.SetMaxPayloadLength(MODEM_LORA, BUFFER_SIZE);
   Radio.SetChannel(RF_FREQUENCY);
 
-  	Buffer[0] = '4';
-    Buffer[1] = '2';
-    //Buffer[2] = 'M';
-    //Buffer[3] = '3';
+  	Buffer[0] = 90;
+    Buffer[1] = 90;
+    Buffer[2] = 90;
+    Buffer[3] = 90;
     //Buffer[4] = '2';
-    //Buffer[5] = 'W';
-    //Buffer[6] = 'L';
+    // Frame Counter
+    Buffer[5] = 0;
+    Buffer[6] = 1;
     //Buffer[7] = '_';
     //Buffer[8] = 'T';
     //Buffer[9] = 'X';
@@ -164,9 +177,9 @@ static void TransmitPacket(void *context)
   float az = 3.0;
   MPU_ReadAccel_f(&ax, &ay, &az);
   //APP_LOG(TS_ON, VLEVEL_L, "x:%.2f\n", ax);
-  memcpy(Buffer+2, &ax, 4);
-  memcpy(Buffer+6, &ay, 4);
-  memcpy(Buffer+10, &az, 4);
+  memcpy(Buffer+9, &ax, 4);
+  memcpy(Buffer+13, &ay, 4);
+  memcpy(Buffer+17, &az, 4);
   APP_LOG(TS_ON, VLEVEL_L, "%s\n\r", Buffer);
   Radio.Send(Buffer, BufferSize);
 }
